@@ -105,6 +105,7 @@ input:focus{border-color:#1D9E75;}
 .saving-indicator{font-size:12px;color:#888780;text-align:center;margin-top:6px;min-height:18px;}
 .spin{display:inline-block;width:10px;height:10px;border:1.5px solid #D3D1C7;border-top-color:#1D9E75;border-radius:50%;animation:spin .7s linear infinite;margin-right:4px;vertical-align:middle;}
 @keyframes spin{to{transform:rotate(360deg);}}
+@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
 
 /* 兄弟追加 */
 .sibling-add-area{margin-top:10px;}
@@ -523,8 +524,10 @@ async function doLogin(name,cls){
   children=[{name:name,type:initialType}];
 
   // 活動データと出欠データを並行取得
+  // 全月分の活動データを並行取得（タブ切り替えを即時にする）
+  var allMonthLoads = MONTHS.map(function(mo){ return loadActsFromSheet(mo.m, cls); });
   await Promise.all([
-    loadActsFromSheet(4,cls),
+    Promise.all(allMonthLoads),
     loadUserData(),
     loadNews(cls)
   ]);
@@ -869,6 +872,14 @@ function renderTabs(){
       renderTabs();
       // スプレッドシートから活動データを読み込んでから表示
       if(!ACTS[m]||!ACTS[m][session.classId]){
+        var content=document.getElementById("content");
+        if(content){
+          content.innerHTML='<div style="padding:16px;display:flex;flex-direction:column;gap:12px;">'
+            +'<div style="height:80px;background:linear-gradient(90deg,#f0f0f0 25%,#e0e0e0 50%,#f0f0f0 75%);background-size:200% 100%;border-radius:12px;animation:shimmer 1.2s infinite;"></div>'
+            +'<div style="height:120px;background:linear-gradient(90deg,#f0f0f0 25%,#e0e0e0 50%,#f0f0f0 75%);background-size:200% 100%;border-radius:12px;animation:shimmer 1.2s infinite;"></div>'
+            +'<div style="height:160px;background:linear-gradient(90deg,#f0f0f0 25%,#e0e0e0 50%,#f0f0f0 75%);background-size:200% 100%;border-radius:12px;animation:shimmer 1.2s infinite;"></div>'
+            +'</div>';
+        }
         loadActsFromSheet(m, session.classId).then(function(){renderContent();try{updatePaymentCard();}catch(e){}});
       } else {
         renderContent();
