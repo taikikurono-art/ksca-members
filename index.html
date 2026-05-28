@@ -1444,9 +1444,6 @@ async function gasGetRoster(){
   }catch(e){return [];}
 }
 
-  content.innerHTML=html;
-}
-
 var adminTab="answered";
 
 function setAdminTab(t){adminTab=t;if(t==="checkin"){renderAdmin();loadAdminCheckinData();}else{renderAdmin();}}
