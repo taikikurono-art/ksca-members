@@ -514,22 +514,48 @@ async function doLogin(name,cls){
   if(luEl)luEl.textContent=LAST_UPDATED;
   renderTabs();
 
-  // 名簿・割引情報を先に取得してからrenderContent
+  // --- キャッシュがあれば即座に表示 ---
+  var cached=loadCache(cls);
+  var hasCache=false;
+  if(cached){
+    rosterCache=cached.rosterCache||[];
+    discountMap=cached.discountMap||{};
+    // ACTSはフォールバック分を上書きしないようマージ
+    if(cached.ACTS){
+      Object.keys(cached.ACTS).forEach(function(m){
+        ACTS[m]=cached.ACTS[m];
+      });
+    }
+    attStore=cached.attStore||{};
+    // childrenをキャッシュ名簿から設定
+    var rosterEntry=rosterCache.filter(function(r){return r.name===name;})[0];
+    var initialType=rosterEntry?rosterEntry.type:"hop";
+    children=[{name:name,type:initialType}];
+    renderContent();
+    try{updatePaymentCard();}catch(e){}
+    hasCache=true;
+  } else {
+    // キャッシュなし → スケルトン表示
+    showSkeleton();
+    children=[{name:name,type:"hop"}];
+  }
+
+  // --- バックグラウンドで最新データ取得 ---
   await loadDiscountInfo();
+  // childrenのtypeを名簿から正しく設定
+  var rosterEntry2=rosterCache.filter(function(r){return r.name===name;})[0];
+  if(rosterEntry2)children[0].type=rosterEntry2.type;
 
-  // 名簿のtypeでchildrenを設定
-  var rosterEntry=rosterCache.filter(function(r){return r.name===name;})[0];
-  var initialType=rosterEntry?rosterEntry.type:(CLS[cls].hasSoar?"hop":"hop");
-  children=[{name:name,type:initialType}];
-
-  // 活動データと出欠データを並行取得
   await Promise.all([
     loadActsFromSheet(4,cls),
     loadUserData(),
     loadNews(cls)
   ]);
+
+  // キャッシュ保存
+  saveCache(cls);
+
   renderContent();
-  // 全データ揃ってから支払いカード更新（教室割引・保護者割引反映）
   try{updatePaymentCard();}catch(e){}
 }
 
@@ -629,6 +655,54 @@ async function loadActsFromSheet(month, classId){
 // 割引情報キャッシュ
 var discountMap={};
 var rosterCache=[];// 名簿全体をキャッシュ
+
+// =========================================================
+// LocalStorageキャッシュ
+// =========================================================
+var CACHE_VERSION=1;
+function cacheKey(cls){return "ksca_cache_v"+CACHE_VERSION+"_"+cls;}
+
+function saveCache(cls){
+  try{
+    var obj={
+      ts:Date.now(),
+      rosterCache:rosterCache,
+      discountMap:discountMap,
+      ACTS:ACTS,
+      attStore:attStore
+    };
+    localStorage.setItem(cacheKey(cls),JSON.stringify(obj));
+  }catch(e){}
+}
+
+function loadCache(cls){
+  try{
+    var raw=localStorage.getItem(cacheKey(cls));
+    if(!raw)return null;
+    var obj=JSON.parse(raw);
+    // 24時間以上古いキャッシュは無視
+    if(Date.now()-obj.ts>86400000)return null;
+    return obj;
+  }catch(e){return null;}
+}
+
+// スケルトンUI（読み込み中のプレースホルダー）
+function showSkeleton(){
+  var css='<style>.ksca-skel{background:linear-gradient(90deg,#ebebeb 25%,#f5f5f0 50%,#ebebeb 75%);background-size:200% 100%;animation:ksca-skel-shine 1.4s infinite;border-radius:6px;}@keyframes ksca-skel-shine{0%{background-position:200% 0}100%{background-position:-200% 0}}</style>';
+  function block(h,w){return '<div class="ksca-skel" style="height:'+h+'px;width:'+(w||"100%")+';margin-bottom:8px;"></div>';}
+  function card(inner){return '<div class="card"><div class="step-body">'+inner+'</div></div>';}
+  document.getElementById("content").innerHTML=
+    css+
+    '<div style="background:#f0faf5;border:1px solid #b2ddc9;border-radius:12px;padding:14px 16px;margin-bottom:12px;">'+
+      block(14,"60%")+
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px;">'+
+        block(36)+block(36)+block(36)+block(36)+
+      '</div>'+
+    '</div>'+
+    card(block(14,"40%")+block(12,"70%")+block(12,"55%"))+
+    card(block(14,"50%")+block(12,"80%")+block(12,"65%"))+
+    card(block(14,"40%")+'<div style="display:flex;gap:6px;margin-top:8px;">'+block(40,"32%")+block(40,"32%")+block(40,"32%")+'</div>');
+}
 
 function getFamilyName(name){
   // 最初の2文字を苗字として使用（草川、武田など）
@@ -1301,6 +1375,7 @@ async function submitAtt(idx){
   if(result&&(result.status==="created"||result.status==="updated")){
     attStore[key].submitted=true;
     attStore[key].name=child.name;attStore[key].classId=session.classId;attStore[key].month=currentM;attStore[key].type=child.type;
+    saveCache(session.classId);
     renderAttSection();
     try{updatePaymentCard();}catch(e){}
   } else {
