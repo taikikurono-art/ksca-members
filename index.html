@@ -1163,19 +1163,21 @@ function renderAttSection(){
   if(!canAdd){html+='<div style="font-size:12px;color:#888780;text-align:center;margin-top:6px;">最大3名まで追加できます</div>';}
   html+='</div>';
 
-  // KSCA未参加の兄弟姉妹カウンター
-  var nonKscaNow=nonKscaSiblings[currentM]||0;
-  html+='<div style="margin-top:10px;background:#fff8f0;border:1px solid #f5c89a;border-radius:8px;padding:10px 12px;">';
-  html+='<div style="font-size:12px;color:#BA7517;font-weight:500;margin-bottom:8px;">👦 KSCA未参加の兄弟姉妹の参加</div>';
-  html+='<div style="font-size:12px;color:#5F5E5A;margin-bottom:8px;">名簿にない兄弟姉妹が体験参加する場合は人数を選んでください（500円/名）</div>';
-  html+='<div style="display:flex;align-items:center;gap:10px;">';
-  html+='<button onclick="changeNonKsca(-1)" style="width:32px;height:32px;font-size:18px;border:1px solid #D3D1C7;border-radius:8px;background:#fff;cursor:pointer;line-height:1;">−</button>';
-  html+='<span id="nonKscaCount" style="font-size:16px;font-weight:500;min-width:20px;text-align:center;">'+nonKscaNow+'</span>';
-  html+='<button onclick="changeNonKsca(1)" style="width:32px;height:32px;font-size:18px;border:1px solid #D3D1C7;border-radius:8px;background:#fff;cursor:pointer;line-height:1;">＋</button>';
-  html+='<span style="font-size:12px;color:#888780;">名</span>';
-  if(nonKscaNow>0){html+='<span style="font-size:12px;font-weight:500;color:#BA7517;margin-left:6px;">= ¥'+(500*nonKscaNow).toLocaleString()+'</span>';}
-  html+='</div>';
-  html+='</div>';
+  // KSCA未参加の兄弟姉妹カウンター（5月限定）
+  if(currentM===5){
+    var nonKscaNow=nonKscaSiblings[currentM]||0;
+    html+='<div style="margin-top:10px;background:#fff8f0;border:1px solid #f5c89a;border-radius:8px;padding:10px 12px;">';
+    html+='<div style="font-size:12px;color:#BA7517;font-weight:500;margin-bottom:8px;">👦 KSCA未参加の兄弟姉妹の参加</div>';
+    html+='<div style="font-size:12px;color:#5F5E5A;margin-bottom:8px;">名簿にない兄弟姉妹が体験参加する場合は人数を選んでください（500円/名）</div>';
+    html+='<div style="display:flex;align-items:center;gap:10px;">';
+    html+='<button onclick="changeNonKsca(-1)" style="width:32px;height:32px;font-size:18px;border:1px solid #D3D1C7;border-radius:8px;background:#fff;cursor:pointer;line-height:1;">−</button>';
+    html+='<span id="nonKscaCount" style="font-size:16px;font-weight:500;min-width:20px;text-align:center;">'+nonKscaNow+'</span>';
+    html+='<button onclick="changeNonKsca(1)" style="width:32px;height:32px;font-size:18px;border:1px solid #D3D1C7;border-radius:8px;background:#fff;cursor:pointer;line-height:1;">＋</button>';
+    html+='<span style="font-size:12px;color:#888780;">名</span>';
+    if(nonKscaNow>0){html+='<span style="font-size:12px;font-weight:500;color:#BA7517;margin-left:6px;">= ¥'+(500*nonKscaNow).toLocaleString()+'</span>';}
+    html+='</div>';
+    html+='</div>';
+  }
 
   sec.innerHTML=html;
 
