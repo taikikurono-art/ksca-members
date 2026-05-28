@@ -847,7 +847,10 @@ function isMonthPast(m){
   var parts=d.match(/(\d+)年(\d+)月(\d+)日/);
   if(!parts)return false;
   var actDate=new Date(parseInt(parts[1]),parseInt(parts[2])-1,parseInt(parts[3]));
-  return actDate<new Date();
+  var tomorrow=new Date();
+  tomorrow.setHours(0,0,0,0);
+  tomorrow.setDate(tomorrow.getDate()+1);
+  return actDate<tomorrow;
 }
 function renderTabs(){
   var row=document.getElementById("tabRow");row.innerHTML="";
@@ -954,11 +957,6 @@ function renderSchedule(){
 function renderContent(){
   if(currentM==="all"){
     renderSchedule();
-    return;
-  }
-  // 終了済み月は振り返りモード
-  if(isMonthPast(currentM)){
-    renderReview(currentM);
     return;
   }
   var act=ACTS[currentM];
@@ -1446,88 +1444,6 @@ async function gasGetRoster(){
   }catch(e){return [];}
 }
 
-// 振り返りデータキャッシュ
-var reviewCache={};
-
-async function gasGetReview(month){
-  if(reviewCache[month])return reviewCache[month];
-  try{
-    var params=new URLSearchParams({action:"review",month:month});
-    var res=await fetch(GAS_URL+"?"+params.toString());
-    var data=JSON.parse(await res.text());
-    if(data&&!data.error)reviewCache[month]=data;
-    return data;
-  }catch(e){return null;}
-}
-
-async function renderReview(month){
-  var mo=MONTHS.filter(function(x){return x.m===month;})[0]||{e:"",l:month+"月"};
-  var dateStr=(DATES[session.classId]&&DATES[session.classId][month])||"";
-  var shortDate=dateStr.replace(/\d+年/,"");
-  var content=document.getElementById("content");
-
-  // ローディング表示
-  content.innerHTML=
-    '<div class="card"><div class="step-body" style="text-align:center;padding:2rem;">' +
-    '<div style="font-size:28px;margin-bottom:8px;">'+mo.e+'</div>' +
-    '<div style="font-size:14px;font-weight:500;color:#2c2c2a;">'+mo.l+' 振り返り</div>' +
-    '<div style="font-size:13px;color:#888780;margin-top:6px;">読み込み中...</div>' +
-    '</div></div>';
-
-  var data=await gasGetReview(month);
-
-  var html="";
-
-  // ヘッダーバナー（終了バッジ）
-  html+='<div style="background:linear-gradient(135deg,#f9f9f7,#f0ede6);border:1px solid #D3D1C7;border-radius:12px;padding:14px 16px;margin-bottom:12px;display:flex;align-items:center;gap:12px;">';
-  html+='<div style="font-size:32px;">'+mo.e+'</div>';
-  html+='<div>';
-  html+='<div style="font-size:15px;font-weight:500;color:#2c2c2a;">'+mo.l+' の活動</div>';
-  if(shortDate)html+='<div style="font-size:12px;color:#888780;margin-top:2px;">'+shortDate+' 開催　<span style="font-size:11px;padding:2px 8px;border-radius:20px;background:#F1EFE8;color:#888780;font-weight:500;">終了</span></div>';
-  html+='</div></div>';
-
-  if(!data||data.error||!data.message){
-    // データなし
-    html+='<div class="card"><div class="step-body" style="text-align:center;padding:2rem;">';
-    html+='<div style="font-size:24px;margin-bottom:8px;">📝</div>';
-    html+='<div style="font-size:14px;color:#888780;">振り返りメッセージを準備中です</div>';
-    html+='</div></div>';
-    content.innerHTML=html;
-    return;
-  }
-
-  // メッセージカード
-  html+='<div class="card">';
-  html+='<div class="step-header"><div class="step-num" style="background:#FFF3E0;color:#E65100;">💌</div>';
-  html+='<div class="step-title">'+(data.title||"活動の振り返り")+'</div></div>';
-  html+='<div class="step-body">';
-  // 改行を<br>に変換
-  var msg=data.message.split("\n").join("<br>");
-  html+='<div style="font-size:13px;line-height:1.9;color:#2c2c2a;white-space:pre-wrap;">'+msg+'</div>';
-  html+='</div></div>';
-
-  // 写真グリッド
-  var photos=(data.photos||[]).filter(function(p){return p&&p.trim();});
-  if(photos.length>0){
-    html+='<div class="card">';
-    html+='<div class="step-header"><div class="step-num" style="background:#E8F5E9;color:#2E7D32;">📷</div>';
-    html+='<div class="step-title">活動の様子</div></div>';
-    html+='<div class="step-body" style="padding:12px;">';
-    var cols=photos.length===1?"1fr":photos.length===2?"1fr 1fr":"1fr 1fr";
-    html+='<div style="display:grid;grid-template-columns:'+cols+';gap:8px;">';
-    photos.forEach(function(url,i){
-      html+='<div style="border-radius:8px;overflow:hidden;aspect-ratio:4/3;background:#f5f5f0;">';
-      html+='<img src="'+url+'" alt="活動写真'+(i+1)+'" style="width:100%;height:100%;object-fit:cover;" loading="lazy" onerror="this.parentElement.remove()">';
-      html+='</div>';
-    });
-    html+='</div>';
-    // 3枚目・4枚目は2行目に
-    if(photos.length>=3){
-      // すでに上でグリッドに入っているのでOK（CSSグリッドが自動折り返し）
-    }
-    html+='</div></div>';
-  }
-
   content.innerHTML=html;
 }
 
@@ -1668,91 +1584,6 @@ async function gasGetRoster(){
     var res=await fetch(GAS_URL+"?"+params.toString());
     return JSON.parse(await res.text());
   }catch(e){return [];}
-}
-
-// 振り返りデータキャッシュ
-var reviewCache={};
-
-async function gasGetReview(month){
-  if(reviewCache[month])return reviewCache[month];
-  try{
-    var params=new URLSearchParams({action:"review",month:month});
-    var res=await fetch(GAS_URL+"?"+params.toString());
-    var data=JSON.parse(await res.text());
-    if(data&&!data.error)reviewCache[month]=data;
-    return data;
-  }catch(e){return null;}
-}
-
-async function renderReview(month){
-  var mo=MONTHS.filter(function(x){return x.m===month;})[0]||{e:"",l:month+"月"};
-  var dateStr=(DATES[session.classId]&&DATES[session.classId][month])||"";
-  var shortDate=dateStr.replace(/\d+年/,"");
-  var content=document.getElementById("content");
-
-  // ローディング表示
-  content.innerHTML=
-    '<div class="card"><div class="step-body" style="text-align:center;padding:2rem;">' +
-    '<div style="font-size:28px;margin-bottom:8px;">'+mo.e+'</div>' +
-    '<div style="font-size:14px;font-weight:500;color:#2c2c2a;">'+mo.l+' 振り返り</div>' +
-    '<div style="font-size:13px;color:#888780;margin-top:6px;">読み込み中...</div>' +
-    '</div></div>';
-
-  var data=await gasGetReview(month);
-
-  var html="";
-
-  // ヘッダーバナー（終了バッジ）
-  html+='<div style="background:linear-gradient(135deg,#f9f9f7,#f0ede6);border:1px solid #D3D1C7;border-radius:12px;padding:14px 16px;margin-bottom:12px;display:flex;align-items:center;gap:12px;">';
-  html+='<div style="font-size:32px;">'+mo.e+'</div>';
-  html+='<div>';
-  html+='<div style="font-size:15px;font-weight:500;color:#2c2c2a;">'+mo.l+' の活動</div>';
-  if(shortDate)html+='<div style="font-size:12px;color:#888780;margin-top:2px;">'+shortDate+' 開催　<span style="font-size:11px;padding:2px 8px;border-radius:20px;background:#F1EFE8;color:#888780;font-weight:500;">終了</span></div>';
-  html+='</div></div>';
-
-  if(!data||data.error||!data.message){
-    // データなし
-    html+='<div class="card"><div class="step-body" style="text-align:center;padding:2rem;">';
-    html+='<div style="font-size:24px;margin-bottom:8px;">📝</div>';
-    html+='<div style="font-size:14px;color:#888780;">振り返りメッセージを準備中です</div>';
-    html+='</div></div>';
-    content.innerHTML=html;
-    return;
-  }
-
-  // メッセージカード
-  html+='<div class="card">';
-  html+='<div class="step-header"><div class="step-num" style="background:#FFF3E0;color:#E65100;">💌</div>';
-  html+='<div class="step-title">'+(data.title||"活動の振り返り")+'</div></div>';
-  html+='<div class="step-body">';
-  // 改行を<br>に変換
-  var msg=data.message.split("\n").join("<br>");
-  html+='<div style="font-size:13px;line-height:1.9;color:#2c2c2a;white-space:pre-wrap;">'+msg+'</div>';
-  html+='</div></div>';
-
-  // 写真グリッド
-  var photos=(data.photos||[]).filter(function(p){return p&&p.trim();});
-  if(photos.length>0){
-    html+='<div class="card">';
-    html+='<div class="step-header"><div class="step-num" style="background:#E8F5E9;color:#2E7D32;">📷</div>';
-    html+='<div class="step-title">活動の様子</div></div>';
-    html+='<div class="step-body" style="padding:12px;">';
-    var cols=photos.length===1?"1fr":photos.length===2?"1fr 1fr":"1fr 1fr";
-    html+='<div style="display:grid;grid-template-columns:'+cols+';gap:8px;">';
-    photos.forEach(function(url,i){
-      html+='<div style="border-radius:8px;overflow:hidden;aspect-ratio:4/3;background:#f5f5f0;">';
-      html+='<img src="'+url+'" alt="活動写真'+(i+1)+'" style="width:100%;height:100%;object-fit:cover;" loading="lazy" onerror="this.parentElement.remove()">';
-      html+='</div>';
-    });
-    html+='</div>';
-    // 3枚目・4枚目は2行目に
-    if(photos.length>=3){
-      // すでに上でグリッドに入っているのでOK（CSSグリッドが自動折り返し）
-    }
-    html+='</div></div>';
-  }
-
-  content.innerHTML=html;
 }
 
 var adminTab="answered";
