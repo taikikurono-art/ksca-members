@@ -516,45 +516,41 @@ async function doLogin(name,cls){
 
   // --- キャッシュがあれば即座に表示 ---
   var cached=loadCache(cls);
-  var hasCache=false;
   if(cached){
     rosterCache=cached.rosterCache||[];
     discountMap=cached.discountMap||{};
-    // ACTSはフォールバック分を上書きしないようマージ
     if(cached.ACTS){
-      Object.keys(cached.ACTS).forEach(function(m){
-        ACTS[m]=cached.ACTS[m];
-      });
+      Object.keys(cached.ACTS).forEach(function(m){ ACTS[m]=cached.ACTS[m]; });
     }
     attStore=cached.attStore||{};
-    // childrenをキャッシュ名簿から設定
     var rosterEntry=rosterCache.filter(function(r){return r.name===name;})[0];
-    var initialType=rosterEntry?rosterEntry.type:"hop";
-    children=[{name:name,type:initialType}];
+    children=[{name:name,type:rosterEntry?rosterEntry.type:"hop"}];
     renderContent();
     try{updatePaymentCard();}catch(e){}
-    hasCache=true;
   } else {
-    // キャッシュなし → スケルトン表示
+    // キャッシュなし → スケルトン表示（データ取得完了まで維持）
     showSkeleton();
     children=[{name:name,type:"hop"}];
   }
 
-  // --- バックグラウンドで最新データ取得 ---
+  // --- 最新データをGASから取得（キャッシュ有無に関わらず実行）---
+  // loadDiscountInfoの中でrosterCacheをリセットするので先に退避
+  var prevChildren=children.slice();
   await loadDiscountInfo();
+  updateGauge(1);
   // childrenのtypeを名簿から正しく設定
   var rosterEntry2=rosterCache.filter(function(r){return r.name===name;})[0];
-  if(rosterEntry2)children[0].type=rosterEntry2.type;
+  children=[{name:name,type:rosterEntry2?rosterEntry2.type:(prevChildren[0]?prevChildren[0].type:"hop")}];
 
-  await Promise.all([
-    loadActsFromSheet(4,cls),
-    loadUserData(),
-    loadNews(cls)
-  ]);
+  await loadActsFromSheet(4,cls);
+  updateGauge(2);
+  await loadUserData();
+  updateGauge(3);
+  await loadNews(cls);
+  updateGauge(4);
 
-  // キャッシュ保存
+  // キャッシュ保存してから表示（スケルトンはここで初めて本物に差し替わる）
   saveCache(cls);
-
   renderContent();
   try{updatePaymentCard();}catch(e){}
 }
@@ -686,22 +682,49 @@ function loadCache(cls){
   }catch(e){return null;}
 }
 
-// スケルトンUI（読み込み中のプレースホルダー）
+// スケルトンUI（読み込み中のプレースホルダー＋進捗ゲージ）
+var loadProgress=0;
+var loadSteps=[
+  {label:"メンバー情報を確認中…"},
+  {label:"活動情報を読み込み中…"},
+  {label:"出欠データを読み込み中…"},
+  {label:"お知らせを確認中…"}
+];
+
 function showSkeleton(){
-  var css='<style>.ksca-skel{background:linear-gradient(90deg,#ebebeb 25%,#f5f5f0 50%,#ebebeb 75%);background-size:200% 100%;animation:ksca-skel-shine 1.4s infinite;border-radius:6px;}@keyframes ksca-skel-shine{0%{background-position:200% 0}100%{background-position:-200% 0}}</style>';
+  var css='<style>'+
+    '.ksca-skel{background:linear-gradient(90deg,#ebebeb 25%,#f5f5f0 50%,#ebebeb 75%);background-size:200% 100%;animation:ksca-skel-shine 1.4s infinite;border-radius:6px;}'+
+    '@keyframes ksca-skel-shine{0%{background-position:200% 0}100%{background-position:-200% 0}}'+
+    '.ksca-gauge-wrap{background:#E1F5EE;border:1px solid #b2ddc9;border-radius:12px;padding:14px 16px;margin-bottom:12px;}'+
+    '.ksca-gauge-bar-bg{background:#c8ead8;border-radius:20px;height:10px;overflow:hidden;margin:10px 0 6px;}'+
+    '.ksca-gauge-bar{height:10px;border-radius:20px;background:linear-gradient(90deg,#1D9E75,#2ec48f);transition:width .4s ease;}'+
+  '</style>';
   function block(h,w){return '<div class="ksca-skel" style="height:'+h+'px;width:'+(w||"100%")+';margin-bottom:8px;"></div>';}
   function card(inner){return '<div class="card"><div class="step-body">'+inner+'</div></div>';}
+  loadProgress=0;
   document.getElementById("content").innerHTML=
     css+
-    '<div style="background:#f0faf5;border:1px solid #b2ddc9;border-radius:12px;padding:14px 16px;margin-bottom:12px;">'+
-      block(14,"60%")+
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px;">'+
-        block(36)+block(36)+block(36)+block(36)+
+    '<div class="ksca-gauge-wrap">'+
+      '<div style="display:flex;align-items:center;justify-content:space-between;">'+
+        '<span id="gaugeLabel" style="font-size:12px;color:#0F6E56;font-weight:500;">データを読み込んでいます…</span>'+
+        '<span id="gaugePct" style="font-size:13px;font-weight:600;color:#1D9E75;">0%</span>'+
       '</div>'+
+      '<div class="ksca-gauge-bar-bg"><div id="gaugeBar" class="ksca-gauge-bar" style="width:0%;"></div></div>'+
+      '<div id="gaugeStep" style="font-size:11px;color:#4a9e80;min-height:16px;"></div>'+
     '</div>'+
     card(block(14,"40%")+block(12,"70%")+block(12,"55%"))+
     card(block(14,"50%")+block(12,"80%")+block(12,"65%"))+
     card(block(14,"40%")+'<div style="display:flex;gap:6px;margin-top:8px;">'+block(40,"32%")+block(40,"32%")+block(40,"32%")+'</div>');
+}
+
+function updateGauge(stepIdx){
+  loadProgress=Math.round((stepIdx/loadSteps.length)*100);
+  var bar=document.getElementById("gaugeBar");
+  var pct=document.getElementById("gaugePct");
+  var lbl=document.getElementById("gaugeStep");
+  if(bar)bar.style.width=loadProgress+"%";
+  if(pct)pct.textContent=loadProgress+"%";
+  if(lbl&&loadSteps[stepIdx-1])lbl.textContent="✓ "+loadSteps[stepIdx-1].label;
 }
 
 function getFamilyName(name){
