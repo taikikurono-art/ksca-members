@@ -525,10 +525,12 @@ async function doLogin(name,cls){
     attStore=cached.attStore||{};
     var rosterEntry=rosterCache.filter(function(r){return r.name===name;})[0];
     children=[{name:name,type:rosterEntry?rosterEntry.type:"hop"}];
+    loginReady=true;
     renderContent();
     try{updatePaymentCard();}catch(e){}
   } else {
     // キャッシュなし → スケルトン表示（データ取得完了まで維持）
+    loginReady=false;
     showSkeleton();
     children=[{name:name,type:"hop"}];
   }
@@ -551,6 +553,7 @@ async function doLogin(name,cls){
 
   // キャッシュ保存してから表示（スケルトンはここで初めて本物に差し替わる）
   saveCache(cls);
+  loginReady=true;
   renderContent();
   try{updatePaymentCard();}catch(e){}
 }
@@ -684,6 +687,7 @@ function loadCache(cls){
 
 // スケルトンUI（読み込み中のプレースホルダー＋進捗ゲージ）
 var loadProgress=0;
+var loginReady=false;// データ読み込み完了前はrenderContentを封鎖
 var loadSteps=[
   {label:"メンバー情報を確認中…"},
   {label:"活動情報を読み込み中…"},
@@ -969,10 +973,9 @@ function renderTabs(){
       renderTabs();
       // スプレッドシートから活動データを読み込んでから表示
       if(!ACTS[m]||!ACTS[m][session.classId]){
-        loadActsFromSheet(m, session.classId).then(function(){renderContent();try{updatePaymentCard();}catch(e){}});
+        loadActsFromSheet(m, session.classId).then(function(){if(loginReady){renderContent();try{updatePaymentCard();}catch(e){}}}); 
       } else {
-        renderContent();
-        try{updatePaymentCard();}catch(e){}
+        if(loginReady){renderContent();try{updatePaymentCard();}catch(e){}}
       }
     };})(mo.m);
     row.appendChild(btn);
