@@ -1442,7 +1442,7 @@ function showLineNoticeModal(){
     '<div style="font-size:15px;font-weight:600;color:#2c2c2a;margin-bottom:0.5rem;">LINEでもご連絡ください</div>' +
     '<div style="font-size:13px;color:#555;line-height:1.6;margin-bottom:1.25rem;">活動1週間以内の欠席は、<br>スタッフへLINEでも一報いただけると助かります。</div>' +
     '<a href="https://lin.ee/pBtw3FN" target="_blank" style="display:block;padding:11px;background:#06C755;color:#fff;border-radius:10px;font-size:14px;font-weight:600;text-decoration:none;margin-bottom:10px;">💬 LINEで連絡する</a>' +
-    '<button onclick="document.getElementById('lineNoticeOverlay').remove()" style="background:none;border:none;color:#888780;font-size:13px;cursor:pointer;text-decoration:underline;">閉じる</button>' +
+    '<button onclick="document.getElementById(&quot;lineNoticeOverlay&quot;).remove()" style="background:none;border:none;color:#888780;font-size:13px;cursor:pointer;text-decoration:underline;">閉じる</button>' +
     '</div>';
   document.body.appendChild(overlay);
   overlay.addEventListener("click",function(e){if(e.target===overlay)overlay.remove();});
