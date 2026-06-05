@@ -546,23 +546,21 @@ async function doLogin(name,cls){
     children=[{name:name,type:"hop"}];
   }
 
-  // --- 最新データをGASから取得（キャッシュ有無に関わらず実行）---
-  // loadDiscountInfoの中でrosterCacheをリセットするので先に退避
+  // --- 最新データをGASから並列取得 ---
   var prevChildren=children.slice();
-  await loadDiscountInfo();
   updateGauge(1);
+  await Promise.all([
+    loadDiscountInfo(),
+    loadActsFromSheet(currentM, cls),
+    loadUserData(),
+    loadNews(cls)
+  ]);
+  updateGauge(4);
   // childrenのtypeを名簿から正しく設定
   var rosterEntry2=rosterCache.filter(function(r){return r.name===name;})[0];
   children=[{name:name,type:rosterEntry2?rosterEntry2.type:(prevChildren[0]?prevChildren[0].type:"hop")}];
 
-  await loadActsFromSheet(currentM,cls);
-  updateGauge(2);
-  await loadUserData();
-  updateGauge(3);
-  await loadNews(cls);
-  updateGauge(4);
-
-  // キャッシュ保存してから表示（スケルトンはここで初めて本物に差し替わる）
+  // キャッシュ保存してから表示
   saveCache(cls);
   loginReady=true;
   renderContent();
