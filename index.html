@@ -544,7 +544,7 @@ async function doLogin(name,cls){
   var rosterEntry2=rosterCache.filter(function(r){return r.name===name;})[0];
   children=[{name:name,type:rosterEntry2?rosterEntry2.type:(prevChildren[0]?prevChildren[0].type:"hop")}];
 
-  await loadActsFromSheet(4,cls);
+  await loadActsFromSheet(currentM,cls);
   updateGauge(2);
   await loadUserData();
   updateGauge(3);
@@ -631,6 +631,7 @@ async function loadActsFromSheet(month, classId){
   }
   actsData.forEach(function(a){
     ACTS[month][a.classId] = {
+      spot: a.spot || "",
       meetTime: cleanTime(a.meetTime),
       dissolveTime: cleanTime(a.dissolveTime),
       fee: a.fee ? a.fee : "",
@@ -1086,7 +1087,7 @@ function renderContent(){
   html+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 12px;">';
   html+='<div><span style="font-size:10px;color:#888780;">📅 開催日</span><div style="font-size:13px;font-weight:500;color:#2c2c2a;">'+cardDate2+'</div></div>';
   html+='<div><span style="font-size:10px;color:#888780;">🕗 集合</span><div style="font-size:13px;font-weight:500;color:#2c2c2a;">'+cardMeet+'</div></div>';
-  html+='<div style="grid-column:1/-1"><span style="font-size:10px;color:#888780;">📍 集合場所</span><div style="font-size:13px;font-weight:500;color:#2c2c2a;">'+cls.spot+'</div></div>';
+  html+='<div style="grid-column:1/-1"><span style="font-size:10px;color:#888780;">📍 集合場所</span><div style="font-size:13px;font-weight:500;color:#2c2c2a;">'+(clsAct.spot||cls.spot||"")+'</div></div>';
   html+='<div><span style="font-size:10px;color:#888780;">🕓 解散</span><div style="font-size:13px;font-weight:500;color:#2c2c2a;">'+cardEnd+'</div></div>';
   html+='<div style="grid-column:1/-1"><span style="font-size:10px;color:#888780;">🎒 持ち物（上位3点）</span><div style="font-size:12px;color:#2c2c2a;">'+top3+'</div></div>';
   html+='</div></div>';
@@ -1094,7 +1095,7 @@ function renderContent(){
   html+='<div class="card"><div class="step-header"><div class="step-num">1</div><div class="step-title">基本情報</div></div><div class="step-body"><div class="info-grid">';
   html+='<div><div class="i-label">開催日</div><div class="i-val sm">'+dateStr+'（'+(cls.hasSoar?"日":"土")+'）</div></div>';
   html+='<div><div class="i-label">集合時間</div><div class="i-val">'+meetTime+'</div></div>';
-  html+='<div style="grid-column:1/-1"><div class="i-label">集合・解散場所</div><div class="i-val sm">'+cls.spot+'　<a href="'+cls.mapUrl+'" target="_blank" style="font-size:11px;color:#1D9E75;font-weight:500;text-decoration:none;vertical-align:middle;">📍 地図を見る</a></div></div>';
+  html+='<div style="grid-column:1/-1"><div class="i-label">集合・解散場所</div><div class="i-val sm">'+(clsAct.spot||cls.spot||'')+'　<a href="'+(cls.mapUrl||'')+'" target="_blank" style="font-size:11px;color:#1D9E75;font-weight:500;text-decoration:none;vertical-align:middle;">📍 地図を見る</a></div></div>';
   html+='<div><div class="i-label">解散時間</div><div class="i-val">'+dissolveTime+'</div></div>';
   html+='<div id="baseFeeRow"><div class="i-label">参加費</div><div class="i-val sm">'+fee+'（兄弟割・教室割あり）</div></div>';
   html+='<div style="grid-column:1/-1"><div class="i-label">交通費</div><div class="i-val sm">'+transport+'</div></div>';
