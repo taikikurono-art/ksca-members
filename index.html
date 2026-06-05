@@ -546,12 +546,12 @@ async function doLogin(name,cls){
     children=[{name:name,type:"hop"}];
   }
 
-  // --- 最新データをGASから並列取得 ---
+  // --- 最新データをGASから並列取得（全月分のACTSを一括取得） ---
   var prevChildren=children.slice();
   updateGauge(1);
   await Promise.all([
     loadDiscountInfo(),
-    loadActsFromSheet(currentM, cls),
+    loadAllActsFromSheet(cls),
     loadUserData(),
     loadNews(cls)
   ]);
@@ -659,6 +659,53 @@ async function loadActsFromSheet(month, classId){
     });
   }
   return true;
+}
+
+// 全月・全クラス分を一括取得してACTSに展開（タブ即時表示のため）
+async function loadAllActsFromSheet(classId){
+  function cleanTime(t){
+    if(!t)return "";
+    if(t.indexOf("1899")>=0||t.indexOf("GMT")>=0){
+      var m=t.match(/(\d{2}):(\d{2}):\d{2}/);
+      return m?m[1]+":"+m[2]:t;
+    }
+    return t;
+  }
+  try{
+    // acts: month/classId未指定で全件返る
+    var params1=new URLSearchParams({action:"acts",classId:classId});
+    var params2=new URLSearchParams({action:"items"});
+    var results=await Promise.all([
+      fetch(GAS_URL+"?"+params1.toString()).then(function(r){return r.json();}),
+      fetch(GAS_URL+"?"+params2.toString()).then(function(r){return r.json();})
+    ]);
+    var actsData=results[0]||[];
+    var itemsData=results[1]||[];
+
+    actsData.forEach(function(a){
+      var month=Number(a.month);
+      if(!month)return;
+      if(!ACTS[month])ACTS[month]={};
+      ACTS[month][a.classId]={
+        spot:a.spot||"",
+        meetTime:cleanTime(a.meetTime),
+        dissolveTime:cleanTime(a.dissolveTime),
+        fee:a.fee?a.fee:"",
+        transport:a.transport,
+        hop:a.hop,
+        soar:a.soar
+      };
+      if(a.clothes)ACTS[month].clothes=a.clothes;
+    });
+
+    itemsData.forEach(function(d){
+      var month=Number(d.month);
+      if(!month)return;
+      if(!ACTS[month])ACTS[month]={};
+      if(d.items&&d.items.length)ACTS[month].items=d.items;
+    });
+    return true;
+  }catch(e){return false;}
 }
 
 // 割引情報キャッシュ
@@ -981,12 +1028,8 @@ function renderTabs(){
     btn.onclick=(function(m){return function(){
       currentM=m;
       renderTabs();
-      // スプレッドシートから活動データを読み込んでから表示
-      if(!ACTS[m]||!ACTS[m][session.classId]){
-        loadActsFromSheet(m, session.classId).then(function(){if(loginReady){renderContent();try{updatePaymentCard();}catch(e){}}}); 
-      } else {
-        if(loginReady){renderContent();try{updatePaymentCard();}catch(e){}}
-      }
+      // 全月分はログイン時に一括取得済みなので即表示
+      if(loginReady){renderContent();try{updatePaymentCard();}catch(e){}}
     };})(mo.m);
     row.appendChild(btn);
     if(mo.m===currentM)activeBtn=btn;
