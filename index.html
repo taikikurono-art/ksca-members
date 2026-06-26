@@ -644,6 +644,8 @@ async function loadActsFromSheet(month, classId){
       meetTime: cleanTime(a.meetTime),
       dissolveTime: cleanTime(a.dissolveTime),
       fee: a.fee ? a.fee : "",
+      feeHop: a.feeHop ? a.feeHop : (a.fee ? a.fee : ""),
+      feeSoar: a.feeSoar ? a.feeSoar : (a.fee ? a.fee : ""),
       transport: a.transport,
       hop: a.hop,
       soar: a.soar
@@ -691,6 +693,8 @@ async function loadAllActsFromSheet(classId){
         meetTime:cleanTime(a.meetTime),
         dissolveTime:cleanTime(a.dissolveTime),
         fee:a.fee?a.fee:"",
+        feeHop:a.feeHop?a.feeHop:(a.fee?a.fee:""),
+        feeSoar:a.feeSoar?a.feeSoar:(a.fee?a.fee:""),
         transport:a.transport,
         hop:a.hop,
         soar:a.soar
@@ -827,9 +831,15 @@ async function loadDiscountInfo(){
 function calcPayment(month){
   var act=ACTS[month];
   var clsAct=(act&&act[session.classId])||{};
-  var feeStr=clsAct.fee||"";
-  var baseFee=feeStr?parseInt(feeStr.replace(/[^0-9]/g,"")):0;
-  if(!baseFee)return null;
+
+  // HOP/SOAR別料金取得（なければ共通feeを使用）
+  function getFeeForType(type){
+    var feeStr="";
+    if(type==="hop"&&clsAct.feeHop)feeStr=clsAct.feeHop;
+    else if(type==="soar"&&clsAct.feeSoar)feeStr=clsAct.feeSoar;
+    else feeStr=clsAct.fee||"";
+    return feeStr?parseInt(feeStr.replace(/[^0-9]/g,"")):0;
+  }
 
   // 参加する子どもをカウント
   var participatingChildren=children.filter(function(c){
@@ -844,8 +854,6 @@ function calcPayment(month){
 
   if(!participatingChildren.length&&!nonKscaCount)return null;
 
-  // 5月は保護者参加割引が設定済みの場合のみ適用（未設定でも表示はする）
-
   // 兄弟割引：2人以上参加なら全員−500円
   var siblingDiscount=participatingChildren.length>=2?500:0;
 
@@ -858,6 +866,8 @@ function calcPayment(month){
   var parentDiscount=(month===5&&parentAtt&&parentAtt.submitted&&parentAtt.attend!=="none"&&parentAtt.attend!=="子どものみ参加"&&parentAtt.attend!=="")?1000:0;
 
   participatingChildren.forEach(function(c){
+    var baseFee=getFeeForType(c.type);
+    if(!baseFee)return; // 料金が0の場合はスキップ
     var jumpupDiscount=discountMap[c.name]==="jumpup"?500:0;
     // 保護者割引は1人目の子どものみに適用
     var parentD=(participatingChildren.indexOf(c)===0)?parentDiscount:0;
@@ -1124,6 +1134,12 @@ function renderContent(){
   var meetTime=clsAct.meetTime||cls.time;
   var dissolveTime=clsAct.dissolveTime||cls.end;
   var fee=clsAct.fee||"7,000円";
+  var feeHop=clsAct.feeHop||fee;
+  var feeSoar=clsAct.feeSoar||fee;
+  var hasSplitFee=(feeHop&&feeSoar&&feeHop!==feeSoar);
+  var feeDisplay=hasSplitFee
+    ?'<span class="tag tag-hop" style="font-size:11px;">HOP</span>'+feeHop+'　<span class="tag tag-soar" style="font-size:11px;">SOAR</span>'+feeSoar
+    :fee;
   var transport=clsAct.transport||"電車でフィールドへ移動（往復実費）";
   var html="";
 
@@ -1149,7 +1165,7 @@ function renderContent(){
   html+='<div><div class="i-label">集合時間</div><div class="i-val">'+meetTime+'</div></div>';
   html+='<div style="grid-column:1/-1"><div class="i-label">集合・解散場所</div><div class="i-val sm">'+(clsAct.spot||cls.spot||'')+'　<a href="'+(cls.mapUrl||'')+'" target="_blank" style="font-size:11px;color:#1D9E75;font-weight:500;text-decoration:none;vertical-align:middle;">📍 地図を見る</a></div></div>';
   html+='<div><div class="i-label">解散時間</div><div class="i-val">'+dissolveTime+'</div></div>';
-  html+='<div id="baseFeeRow"><div class="i-label">参加費</div><div class="i-val sm">'+fee+'（兄弟割・教室割あり）</div></div>';
+  html+='<div id="baseFeeRow"><div class="i-label">参加費</div><div class="i-val sm">'+feeDisplay+'（兄弟割・教室割あり）</div></div>';
   html+='<div style="grid-column:1/-1"><div class="i-label">交通費</div><div class="i-val sm">'+transport+'</div></div>';
   html+='</div></div></div>';
 
@@ -1175,7 +1191,14 @@ function renderContent(){
   }
   html+='</div></div>';
 
-  html+='<div class="card"><div class="step-header"><div class="step-num">5</div><div class="step-title">出欠の回答</div></div><div class="step-body"><div id="attSection"></div><div class="att-note">回答後もこのページから変更できます</div></div></div>';
+  // 未回答かどうか判定（カードのヘッダー色に使う）
+  var allAnswered=children.every(function(c){
+    if(!c.name||!c.type)return true;
+    var k=session.classId+"|"+c.name+"|"+currentM+"|"+c.type;
+    return attStore[k]&&attStore[k].submitted;
+  });
+  var attStepBg=allAnswered?"background:#E1F5EE;color:#0F6E56;":"background:#FAEEDA;color:#854F0B;";
+  html+='<div class="card"><div class="step-header"><div class="step-num" style="'+attStepBg+'">5</div><div class="step-title">出欠の回答'+(allAnswered?"":'　<span style="font-size:11px;font-weight:400;color:#BA7517;">⚠️ 未回答</span>')+'</div></div><div class="step-body"><div id="attSection"></div><div class="att-note">回答後もこのページから変更できます</div></div></div>';
   html+='<div id="paymentCard"></div>';
 
   html+='<div style="background:#fff8f0;border:1px solid #f5c89a;border-radius:12px;padding:14px 16px;margin-top:4px;">';
@@ -1251,15 +1274,16 @@ function renderAttSection(){
     // ステータス表示
     var statusTxt="";
     if(att.submitted){statusTxt=att.answer==="yes"?"✓ 参加":att.answer==="no"?"✗ 欠席":"△ 検討中";}
+    else{statusTxt="未回答";}
 
     html+='<div class="child-att-block">';
-    var headerBg=att.submitted?(att.answer==="yes"?"#f0faf5":att.answer==="no"?"#fff5f5":"#fffaf0"):"#f9f9f7";
+    var headerBg=att.submitted?(att.answer==="yes"?"#f0faf5":att.answer==="no"?"#fff5f5":"#fffaf0"):"#FFF8ED";
     html+='<div class="child-att-header" onclick="toggleBlock('+idx+')" style="background:'+headerBg+';">';
     html+='<div class="child-att-header-left">'+badgeHtml;
     if(name){html+='<span class="child-att-name">'+name+'</span>';}
     else{html+='<span class="child-att-name" style="color:#888780;">お名前を入力してください</span>';}
     if(statusTxt){
-      var stColor=att.answer==="yes"?"#0F6E56":att.answer==="no"?"#A32D2D":"#BA7517";
+      var stColor=att.submitted?(att.answer==="yes"?"#0F6E56":att.answer==="no"?"#A32D2D":"#BA7517"):"#BA7517";
       html+='<span style="font-size:12px;font-weight:500;color:'+stColor+';">'+statusTxt+'</span>';
     }
     html+='</div>';
@@ -1285,24 +1309,18 @@ function renderAttSection(){
       // 出欠回答
       if(att.submitted){
         var ansLabel=att.answer==="yes"?"✓ 参加":att.answer==="no"?"✗ 欠席":"△ 検討中";
-        html+='<div class="done-msg"><div class="done-row"><span>'+ansLabel+' として回答済み</span><button class="change-link" onclick="resetAtt(\''+key+'\')">変更する</button></div>';
-        if(att.reason){html+='<div style="font-size:12px;margin-top:4px;opacity:.8;">'+att.reason+'</div>';}
-        html+='</div>';
+        html+='<div class="done-msg"><div class="done-row"><span>'+ansLabel+' として回答済み</span><button class="change-link" onclick="resetAtt(\''+key+'\')">変更する</button></div></div>';
       } else {
         var cY=att.answer==="yes"?"checked":"";
         var cN=att.answer==="no"?"checked":"";
         var cM=att.answer==="maybe"?"checked":"";
-        var showR=(att.answer&&att.answer!=="yes")?"block":"none";
-        var canSubmit=(name&&type&&att.answer)?true:false;
-        html+='<div style="margin-top:8px;"><div style="font-size:11px;color:#888780;margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em;">出欠</div>';
-        html+='<div class="att-radio-group">';
+        html+='<div style="margin-top:8px;"><div style="font-size:11px;color:#888780;margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em;">出欠をタップしてください</div>';
+        html+='<div class="att-radio-group" id="rg_'+idx+'">';
         html+='<label class="att-option"><input type="radio" name="ans_'+idx+'" value="yes" '+cY+' onchange="onAttChange(\''+idx+'\',\'yes\')"><span class="att-option-label yes-label">✓ 参加</span></label>';
         html+='<label class="att-option"><input type="radio" name="ans_'+idx+'" value="no" '+cN+' onchange="onAttChange(\''+idx+'\',\'no\')"><span class="att-option-label no-label">✗ 欠席</span></label>';
         html+='<label class="att-option"><input type="radio" name="ans_'+idx+'" value="maybe" '+cM+' onchange="onAttChange(\''+idx+'\',\'maybe\')"><span class="att-option-label maybe-label">△ 検討中</span></label>';
         html+='</div>';
-        html+='<div class="reason-box" id="rb_'+idx+'" style="display:'+showR+';"><textarea id="rt_'+idx+'" placeholder="欠席・検討中の理由（任意）">'+(att.reason||"")+'</textarea></div></div>';
-        html+='<button class="sub-btn" id="sb_'+idx+'" onclick="submitAtt('+idx+')" '+(canSubmit?"":"disabled")+'>回答を送信する</button>';
-        html+='<div class="saving-indicator" id="si_'+idx+'"></div>';
+        html+='<div class="saving-indicator" id="si_'+idx+'"></div></div>';
       }
       html+='</div>'; // child-att-body
     }
@@ -1430,9 +1448,9 @@ function onAttChange(idx,val){
   if(!child||!child.name||!child.type)return;
   var key=attKey(child.name,currentM,child.type);
   if(!attStore[key])attStore[key]={};
-  attStore[key].answer=val;attStore[key].submitted=false;
-  var sb=document.getElementById("sb_"+idx);if(sb)sb.disabled=false;
-  var rb=document.getElementById("rb_"+idx);if(rb)rb.style.display=val!=="yes"?"block":"none";
+  attStore[key].answer=val;
+  attStore[key].submitted=false;
+  submitAtt(idx);
 }
 
 async function submitAtt(idx){
@@ -1440,16 +1458,16 @@ async function submitAtt(idx){
   if(!child||!child.name||!child.type)return;
   var key=attKey(child.name,currentM,child.type);
   if(!attStore[key]||!attStore[key].answer)return;
-  var rt=document.getElementById("rt_"+idx);
-  attStore[key].reason=rt?rt.value:"";
+  attStore[key].reason="";
   var si=document.getElementById("si_"+idx);
-  var sb=document.getElementById("sb_"+idx);
-  if(sb)sb.disabled=true;
+  // ラジオボタンを一時的に無効化
+  var rg=document.getElementById("rg_"+idx);
+  if(rg)rg.querySelectorAll("input").forEach(function(r){r.disabled=true;});
   if(si)si.innerHTML='<span class="spin"></span>保存中...';
   var result=await gasPost({
     name:child.name,classId:session.classId,classLabel:CLS[session.classId].label,
     type:child.type,month:currentM,
-    answer:attStore[key].answer,reason:attStore[key].reason||""
+    answer:attStore[key].answer,reason:""
   });
   if(result&&(result.status==="created"||result.status==="updated")){
     attStore[key].submitted=true;
@@ -1457,7 +1475,6 @@ async function submitAtt(idx){
     saveCache(session.classId);
     renderAttSection();
     try{updatePaymentCard();}catch(e){}
-    // 欠席かつ活動日1週間以内ならLINE連絡促進モーダルを表示
     if(attStore[key].answer==="no"){
       var actDateStr=(DATES[session.classId]&&DATES[session.classId][currentM])||"";
       var parts=actDateStr.match(/(\d+)年(\d+)月(\d+)日/);
@@ -1470,8 +1487,9 @@ async function submitAtt(idx){
       if(withinWeek){showLineNoticeModal();}
     }
   } else {
-    if(si)si.innerHTML='<span style="color:#A32D2D;">保存に失敗しました。もう一度お試しください。</span>';
-    if(sb)sb.disabled=false;
+    // 失敗時はラジオを再有効化してエラー表示
+    if(rg)rg.querySelectorAll("input").forEach(function(r){r.disabled=false;});
+    if(si)si.innerHTML='<span style="color:#A32D2D;">保存に失敗しました。もう一度選んでください。</span>';
   }
 }
 
