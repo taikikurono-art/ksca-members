@@ -362,7 +362,6 @@ function normalizeName(val){
   return val.replace(/\u3000/g," ").replace(/\s+/g,"").trim();
 }
 var LAST_UPDATED="2026年4月20日";
-var PAYPAL_URL="https://paypal.me/educare0713?locale.x=ja_JP&country.x=JP";
 var GAS_URL="https://script.google.com/macros/s/AKfycby3ldBnzepQBPSuXQXuMMrzH6kaA_aG4ZaxL0fnMwjasjmPQL1xNEuCacBOKTQNUQrH/exec";
 var PW={kanayama:"ksca2026",ozone:"ozone2026",admin:"ksca_admin",staff:"ksca_staff"};
 var CLS={
@@ -1552,11 +1551,73 @@ function updatePaymentCard(){
     html+='</div>';
   }
 
-  html+='<a href="'+PAYPAL_URL+'" target="_blank" style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:12px;padding:12px;background:#003087;color:#fff;border-radius:8px;font-size:14px;font-weight:500;text-decoration:none;">💳 PayPalで支払う</a>';
+  var nonKscaNow=nonKscaSiblings[currentM]||0;
+  html+='<button id="stripePayBtn" onclick="startStripeCheckout()" style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px;margin-top:12px;padding:12px;background:#635BFF;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:500;cursor:pointer;">💳 カードでお支払い</button>';
+  html+='<div class="saving-indicator" id="stripePayStatus"></div>';
+  if(nonKscaNow>0){
+    html+='<div style="font-size:11px;color:#BA7517;text-align:center;margin-top:4px;">※ 名簿にない兄弟姉妹の体験参加費（¥'+(500*nonKscaNow).toLocaleString()+'）はカード決済の対象外です。別途スタッフへお支払いください。</div>';
+  }
   html+='<div style="font-size:11px;color:#888780;text-align:center;margin-top:6px;">集合時間までにお支払いをお願いします</div>';
   html+='</div>';
 
   card.innerHTML=html;
+}
+
+// Stripe Checkoutセッションを作成して決済ページへ遷移
+// ※ 金額は必ずGAS側（サーバー側）で名簿・出欠データから再計算する。
+//   ここで画面上のpayment.totalをそのまま送らないのは、途中でパラメータを
+//   書き換えられて安く決済されることを防ぐため。
+async function startStripeCheckout(){
+  var btn=document.getElementById("stripePayBtn");
+  var st=document.getElementById("stripePayStatus");
+  if(btn){btn.disabled=true;btn.textContent="決済ページを準備中...";}
+  if(st)st.innerHTML='<span class="spin"></span>準備中...';
+  try{
+    var returnUrl=location.origin+location.pathname;
+    var params=new URLSearchParams({
+      action:"create_checkout",
+      classId:session.classId,
+      name:session.name,
+      month:currentM,
+      returnUrl:returnUrl
+    });
+    var res=await fetch(GAS_URL+"?"+params.toString(),{redirect:"follow"});
+    var data=JSON.parse(await res.text());
+    if(data&&data.url){
+      location.href=data.url;
+    } else {
+      if(st)st.innerHTML='<span style="color:#A32D2D;">'+(data&&data.error?data.error:"決済ページの作成に失敗しました。時間をおいて再度お試しください。")+'</span>';
+      if(btn){btn.disabled=false;btn.textContent="💳 カードでお支払い";}
+    }
+  }catch(e){
+    if(st)st.innerHTML='<span style="color:#A32D2D;">通信エラーが発生しました。時間をおいて再度お試しください。</span>';
+    if(btn){btn.disabled=false;btn.textContent="💳 カードでお支払い";}
+  }
+}
+
+// Stripe決済後のリダイレクト（?paid=1 / ?paid=0）を検知してバナー表示し、URLをきれいにする
+function checkPaymentReturn(){
+  try{
+    var params=new URLSearchParams(location.search);
+    if(!params.has("paid"))return;
+    var paid=params.get("paid");
+    var banner=document.createElement("div");
+    banner.style.cssText="position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:9999;max-width:90%;padding:12px 18px;border-radius:10px;font-size:13px;font-weight:500;box-shadow:0 2px 10px rgba(0,0,0,0.15);text-align:center;";
+    if(paid==="1"){
+      banner.style.background="#E1F5EE";banner.style.color="#0F6E56";
+      banner.textContent="✅ お支払いが完了しました。ありがとうございました！";
+    } else {
+      banner.style.background="#FAEEDA";banner.style.color="#854F0B";
+      banner.textContent="お支払いはキャンセルされました。必要な場合は改めてお試しください。";
+    }
+    document.body.appendChild(banner);
+    setTimeout(function(){ if(banner.parentNode) banner.parentNode.removeChild(banner); },6000);
+    // 再読み込み時に再表示されないようURLからパラメータを除去
+    var url=new URL(location.href);
+    url.searchParams.delete("paid");
+    url.searchParams.delete("session_id");
+    history.replaceState({},"",url.toString());
+  }catch(e){}
 }
 
 function onParentChange(pKey,val){
@@ -1599,7 +1660,6 @@ function resetParent(pKey){
 var adminRoster=[];
 var parentStore={};// 保護者参加回答 {key: {attend, join}}
 var rosterDiscount={};// {name: "jumpup" or ""}
-var PAYPAL_URL="https://paypal.me/educare0713?locale.x=ja_JP&country.x=JP";
 
 async function loadAdminData(){
   var st=document.getElementById("adminStatus");
@@ -2028,6 +2088,7 @@ function renderAdminCheckin(){
 }
 document.addEventListener("DOMContentLoaded", function(){
   try{ initFromStorage(); }catch(e){}
+  try{ checkPaymentReturn(); }catch(e){}
 
   function bindBtn(id, fn){
     var el = document.getElementById(id);
