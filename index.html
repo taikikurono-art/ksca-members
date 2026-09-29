@@ -218,7 +218,7 @@ input:focus{border-color:#1D9E75;}
       <select id="nameSelect" style="width:100%;padding:9px 10px;font-size:14px;border:0.5px solid rgba(0,0,0,0.15);border-radius:8px;background:#fff;color:#2c2c2a;outline:none;border-color:#1D9E75;">
         <option value="">-- 選択してください --</option>
       </select>
-      <div style="font-size:11px;color:#888780;margin-top:4px;">兄弟姉妹は後から追加できます</div>
+      <div style="font-size:11px;color:#888780;margin-top:4px;">兄弟姉妹は自動で表示されます</div>
     </div>
     <button class="login-btn" id="loginBtn">次へ</button>
     <div class="login-err hidden" id="loginErr">パスワードが正しくありません</div>
@@ -533,8 +533,7 @@ async function doLogin(name,cls){
       Object.keys(cached.ACTS).forEach(function(m){ ACTS[m]=cached.ACTS[m]; });
     }
     attStore=cached.attStore||{};
-    var rosterEntry=rosterCache.filter(function(r){return r.name===name;})[0];
-    children=[{name:name,type:rosterEntry?rosterEntry.type:"hop"}];
+    children=getHouseholdChildren(name);
     loginReady=true;
     renderContent();
     try{updatePaymentCard();}catch(e){}
@@ -555,9 +554,8 @@ async function doLogin(name,cls){
     loadNews(cls)
   ]);
   updateGauge(4);
-  // childrenのtypeを名簿から正しく設定
-  var rosterEntry2=rosterCache.filter(function(r){return r.name===name;})[0];
-  children=[{name:name,type:rosterEntry2?rosterEntry2.type:(prevChildren[0]?prevChildren[0].type:"hop")}];
+  // 名簿の世帯IDから兄弟姉妹を含めて表示対象を決める
+  children=getHouseholdChildren(name);
 
   // キャッシュ保存してから表示
   saveCache(cls);
@@ -718,7 +716,7 @@ var rosterCache=[];// 名簿全体をキャッシュ
 // =========================================================
 // LocalStorageキャッシュ
 // =========================================================
-var CACHE_VERSION=1;
+var CACHE_VERSION=2;
 function cacheKey(cls){return "ksca_cache_v"+CACHE_VERSION+"_"+cls;}
 
 function saveCache(cls){
@@ -791,6 +789,22 @@ function updateGauge(stepIdx){
   if(lbl&&loadSteps[stepIdx-1])lbl.textContent="✓ "+loadSteps[stepIdx-1].label;
 }
 
+// 同じクラス・同じ世帯ID（名簿S列）の子どもを返す（本人が先頭）。世帯IDが空なら本人のみ
+function getHouseholdChildren(myName){
+  var me=rosterCache.filter(function(r){return r.name===myName;})[0];
+  var list=[{name:myName,type:me?me.type:"hop"}];
+  if(me&&me.household){
+    rosterCache.forEach(function(r){
+      if(r.name===myName)return;
+      if(r.classId!==session.classId)return;
+      if(r.household!==me.household)return;
+      if(list.some(function(c){return c.name===r.name;}))return;
+      list.push({name:r.name,type:r.type});
+    });
+  }
+  return list;
+}
+
 function getFamilyName(name){
   // 最初の2文字を苗字として使用（草川、武田など）
   if(!name)return "";
@@ -853,8 +867,7 @@ function calcPayment(month){
 
   if(!participatingChildren.length&&!nonKscaCount)return null;
 
-  // 兄弟割引：2人以上参加なら全員−500円
-  var siblingDiscount=participatingChildren.length>=2?500:0;
+  // 兄弟割引：名簿で兄弟姉妹登録（同じ世帯IDが2人以上）があれば、参加人数に関係なく1人−500円
 
   var breakdown=[];
   var total=0;
@@ -866,6 +879,8 @@ function calcPayment(month){
 
   participatingChildren.forEach(function(c){
     var baseFee=getFeeForType(c.type);
+    var rEntry=rosterCache.filter(function(r){return r.name===c.name;})[0];
+    var siblingDiscount=(rEntry&&rEntry.hasSibling)?500:0;
     if(!baseFee)return; // 料金が0の場合はスキップ
     var jumpupDiscount=discountMap[c.name]==="jumpup"?500:0;
     // 保護者割引は1人目の子どものみに適用
@@ -918,15 +933,6 @@ async function loadUserData(){
       } else {
         var key=r.classId+"|"+r.name+"|"+r.month+"|"+r.type;
         attStore[key]={answer:r.answer,reason:r.reason||"",submitted:true,name:r.name,classId:r.classId,month:Number(r.month),type:r.type};
-        // 兄弟姉妹を自動復元（同じ苗字かつ名簿に存在する子のみ）
-        if(r.name!==session.name){
-          var isSibling=getFamilyName(r.name)===getFamilyName(session.name);
-          var inRoster=rosterCache.filter(function(rc){return rc.name===r.name;}).length>0;
-          var exists=children.filter(function(c){return c.name===r.name;}).length>0;
-          if(isSibling&&inRoster&&!exists&&children.length<1+MAX_SIBLINGS){
-            children.push({name:r.name,type:r.type});
-          }
-        }
       }
     }
   });
@@ -934,6 +940,20 @@ async function loadUserData(){
 }
 
 function attKey(name,month,type){return session.classId+"|"+name+"|"+month+"|"+type;}
+
+// 兄弟姉妹の回答状況（兄弟が2人以上表示される家庭のみ）
+function getSiblingStatus(month){
+  var res={unanswered:[],maybe:[]};
+  if(children.length<2)return res;
+  children.forEach(function(c){
+    if(!c.name||!c.type)return;
+    var a=attStore[attKey(c.name,month,c.type)];
+    if(!a||!a.submitted)res.unanswered.push(c.name);
+    else if(a.answer==="maybe")res.maybe.push(c.name);
+  });
+  return res;
+}
+function sanNames(list){return list.map(function(n){return n+"さん";}).join("・");}
 
 function toggleBlock(idx){
   openBlocks[idx]=!openBlocks[idx];
@@ -1255,6 +1275,15 @@ function renderAttSection(){
   var cls=CLS[session.classId];
   var html="";
 
+  // 兄弟姉妹の回答忘れアラート
+  var sibSt=getSiblingStatus(currentM);
+  if(sibSt.unanswered.length){
+    html+='<div style="background:#FAEEDA;border:1px solid #BA7517;border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:13px;color:#854F0B;line-height:1.6;">'+
+      '<div style="font-weight:600;">⚠️ '+sanNames(sibSt.unanswered)+'の出欠がまだです</div>'+
+      '<div style="font-size:12px;margin-top:2px;">兄弟姉妹それぞれ「参加」か「欠席」を選んでください。お休みの子も「欠席」を押してください。</div>'+
+    '</div>';
+  }
+
   children.forEach(function(child,idx){
     var isFirst=(idx===0);
     var type=child.type;
@@ -1292,14 +1321,6 @@ function renderAttSection(){
     if(isOpen){
       html+='<div class="child-att-body">';
 
-      // 兄弟の場合は名前と削除ボタン表示（名前は選択済みで変更不可）
-      if(!isFirst){
-        html+='<div class="sibling-name-row">';
-        html+='<div style="flex:1;font-size:13px;font-weight:500;padding:8px 0;">'+name+'</div>';
-        html+='<button class="remove-btn" onclick="removeSibling('+idx+')">×</button>';
-        html+='</div>';
-      }
-
       // HOP/SOAR選択（金山クラスのみ）
       if(cls.hasSoar){
         html+='<div style="margin-bottom:10px;">'+(type==="hop"?'<span class="tag tag-hop" style="font-size:12px;padding:4px 12px;">HOP（幼〜低学年）</span>':'<span class="tag tag-soar" style="font-size:12px;padding:4px 12px;">SOAR（中〜高学年）</span>')+'</div>';
@@ -1325,13 +1346,6 @@ function renderAttSection(){
     }
     html+='</div>'; // child-att-block
   });
-
-  // 兄弟追加ボタン
-  html+='<div class="sibling-add-area">';
-  var canAdd=children.length<1+MAX_SIBLINGS;
-  html+='<button class="add-sibling-btn" onclick="addSibling()" '+(canAdd?"":"disabled")+'>＋ 兄弟姉妹を追加する（名簿あり）</button>';
-  if(!canAdd){html+='<div style="font-size:12px;color:#888780;text-align:center;margin-top:6px;">最大3名まで追加できます</div>';}
-  html+='</div>';
 
   // KSCA未参加の兄弟姉妹カウンター（5月限定）
   if(currentM===5){
@@ -1552,7 +1566,15 @@ function updatePaymentCard(){
   }
 
   var nonKscaNow=nonKscaSiblings[currentM]||0;
+  // 兄弟姉妹の出欠が全員決まるまで支払いボタンは押せない（兄弟分をまとめて支払うため）
+  var paySt=getSiblingStatus(currentM);
+  var undecided=paySt.unanswered.concat(paySt.maybe);
+  if(undecided.length){
+    html+='<div style="background:#FAEEDA;border-radius:8px;padding:8px 10px;margin-top:12px;font-size:12px;color:#854F0B;line-height:1.6;">⚠️ '+sanNames(undecided)+'の出欠が決まるとお支払いに進めます（兄弟姉妹の分をまとめてお支払いいただくため）</div>';
+    html+='<button disabled style="width:100%;margin-top:8px;padding:12px;background:#D3D1C7;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:500;cursor:not-allowed;">💳 カードでお支払い</button>';
+  } else {
   html+='<button id="stripePayBtn" onclick="startStripeCheckout()" style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px;margin-top:12px;padding:12px;background:#635BFF;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:500;cursor:pointer;">💳 カードでお支払い</button>';
+  }
   html+='<div class="saving-indicator" id="stripePayStatus"></div>';
   if(nonKscaNow>0){
     html+='<div style="font-size:11px;color:#BA7517;text-align:center;margin-top:4px;">※ 名簿にない兄弟姉妹の体験参加費（¥'+(500*nonKscaNow).toLocaleString()+'）はカード決済の対象外です。別途スタッフへお支払いください。</div>';
