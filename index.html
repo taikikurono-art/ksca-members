@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>クスカ 保護者ページ</title>
 <meta name="theme-color" content="#F5F2EA">
-<link rel="icon" type="image/png" href="img/kusuka-mark.png">
-<link rel="apple-touch-icon" href="img/kusuka-logo.png">
+<link rel="icon" type="image/png" href="kusuka-mark.png">
+<link rel="apple-touch-icon" href="kusuka-logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@700&display=swap" rel="stylesheet">
@@ -468,7 +468,7 @@ function renderLogin() {
   }
 
   $app.innerHTML = '<div class="wrap"><main class="main login">' +
-    '<div class="login-logo"><img src="img/kusuka-logo.png" alt="クスカ KIDS SMALL CAMP"><b>保護者ページ</b></div>' + body +
+    '<div class="login-logo"><img src="kusuka-logo.png" alt="クスカ KIDS SMALL CAMP"><b>保護者ページ</b></div>' + body +
     '<div class="foot-links"><div><a href="#/staff-login">引率スタッフの方</a><a href="#/admin-login">管理者の方</a></div>' +
     '<div class="tagline">「今日も楽しかった」を積み重ねる</div></div></main></div>';
 
@@ -480,7 +480,7 @@ function renderLogin() {
 
 function renderAdminLogin() {
   $app.innerHTML = '<div class="wrap"><main class="main login">' +
-    '<div class="login-logo"><img src="img/kusuka-logo.png" alt="クスカ KIDS SMALL CAMP"><b>管理者ログイン</b></div>' +
+    '<div class="login-logo"><img src="kusuka-logo.png" alt="クスカ KIDS SMALL CAMP"><b>管理者ログイン</b></div>' +
     '<form class="card" data-form="loginAdmin" style="gap:18px">' +
     '<div><label class="f" for="apw">管理者の合言葉</label><input id="apw" name="pw" type="password" autocomplete="current-password" required></div>' +
     (S.login.error ? '<div class="err" role="alert">' + esc(S.login.error) + "</div>" : "") +
@@ -494,7 +494,7 @@ function renderStaffLogin() {
       esc(CLASSES[id].short) + "クラス</span><small>" + CLASSES[id].day + "</small></label>";
   }).join("");
   $app.innerHTML = '<div class="wrap"><main class="main login">' +
-    '<div class="login-logo"><img src="img/kusuka-logo.png" alt="クスカ KIDS SMALL CAMP"><b>引率スタッフ</b></div>' +
+    '<div class="login-logo"><img src="kusuka-logo.png" alt="クスカ KIDS SMALL CAMP"><b>引率スタッフ</b></div>' +
     '<form class="card" data-form="loginStaff" style="gap:18px">' +
     '<fieldset style="border:0;margin:0;padding:0"><legend class="f" style="padding:0">担当クラス</legend><div class="cls-grid">' + opts + "</div></fieldset>" +
     '<div><label class="f" for="spw">引率スタッフの合言葉</label><input id="spw" name="pw" type="password" autocomplete="current-password" required></div>' +
@@ -516,7 +516,7 @@ function renderLoading() {
 // =============================================================
 function header() {
   var cls = S.session && CLASSES[S.session.classId];
-  return '<header class="hdr"><div class="hdr-l"><img class="hdr-logo" src="img/kusuka-mark.png" alt="クスカ">' +
+  return '<header class="hdr"><div class="hdr-l"><img class="hdr-logo" src="kusuka-mark.png" alt="クスカ">' +
     '<span class="hdr-sub">' + esc(cls ? cls.label : "") + "</span></div>" +
     '<button class="link-sub" type="button" data-act="logout">ログアウト</button></header>';
 }
@@ -1211,7 +1211,7 @@ function renderAdminLoading() {
 function adminShell(main, reqCount) {
   var sec = S.admin.section;
   var b = function (id, label, extra) { return '<button type="button" data-act="adminSection" data-s="' + id + '"' + (sec === id ? ' aria-current="page"' : "") + ">" + label + (extra || "") + "</button>"; };
-  return '<div class="admin"><aside class="side"><div class="side-logo"><img src="img/kusuka-logo-white.png" alt="クスカ KIDS SMALL CAMP"><small>管理画面</small></div>' +
+  return '<div class="admin"><aside class="side"><div class="side-logo"><img src="kusuka-logo-white.png" alt="クスカ KIDS SMALL CAMP"><small>管理画面</small></div>' +
     '<nav class="side-nav" aria-label="管理メニュー">' + b("overview", "出欠・お支払い") + b("requests", "兄弟の申請", reqCount ? '<span class="badge">' + reqCount + "</span>" : "") + b("pins", "暗証番号") + b("check", "当日チェック") + "</nav>" +
     '<button class="link-sub" type="button" data-act="logout">ログアウト</button></aside><main class="amain">' + main + "</main></div>";
 }
@@ -1432,7 +1432,7 @@ function startStaffPolling() {
 function stopStaffPolling() { if (S.staff.timer) { clearInterval(S.staff.timer); S.staff.timer = null; } }
 
 function renderStaffLoading() {
-  $app.innerHTML = '<div class="wrap"><header class="dark-hdr"><img src="img/kusuka-mark-white.png" alt="クスカ" style="height:16px"></header><main class="main"><div class="small"><span class="spin"></span> 読み込み中…</div></main></div>';
+  $app.innerHTML = '<div class="wrap"><header class="dark-hdr"><img src="kusuka-mark-white.png" alt="クスカ" style="height:16px"></header><main class="main"><div class="small"><span class="spin"></span> 読み込み中…</div></main></div>';
 }
 
 function checkBody(d) {
@@ -1467,7 +1467,7 @@ function renderStaff() {
     return '<option value="' + e.month + '"' + (e.month === d.month ? " selected" : "") + ">" + e.month + "月（" + esc(e.label) + "）</option>";
   }).join("");
   $app.innerHTML = '<div class="wrap"><header class="dark-hdr"><div style="display:flex;flex-direction:column;gap:6px">' +
-    '<img src="img/kusuka-mark-white.png" alt="クスカ" style="height:16px;width:auto;align-self:flex-start">' +
+    '<img src="kusuka-mark-white.png" alt="クスカ" style="height:16px;width:auto;align-self:flex-start">' +
     '<b style="font-family:var(--round);font-size:18px">当日チェック</b><span style="font-size:12px;color:var(--on-dark)">' + esc(CLASSES[d.classId].label) + "・" + esc(d.dateLabel) + "</span></div>" +
     '<button class="link-sub" type="button" data-act="logout">ログアウト</button></header><main class="main">' +
     '<div><label class="f" for="stMonth">対象の月</label><select id="stMonth" data-change="staffMonth">' + monthOpts + "</select></div>" +
