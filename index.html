@@ -595,7 +595,7 @@ function viewHome() {
       '<div class="kv" style="margin-left:28px"><small>解散</small><b>' + esc(act.dissolveTime || "—") + "</b></div></div>";
     if (act.spot) {
       hero += '<div class="info-row">' + I.pin + '<div class="kv" style="flex:1"><small>集合・解散場所</small><b style="font-size:15px">' + esc(act.spot) + "</b></div>" +
-        '<a class="link" href="' + esc(mapUrl(act.spot)) + '" target="_blank" rel="noopener">地図</a></div>';
+        '</div>';
     }
     hero += '</div><a class="link-row" href="#/detail"><span style="display:flex;align-items:center;gap:8px;color:var(--green)">' + I.bag +
       '<span style="color:var(--ink)">活動のしおり（持ち物・服装）</span></span>' + I.right + "</a>";
@@ -802,7 +802,7 @@ function viewDetail() {
     '<div class="kv"><small>集合</small><b>' + esc(act.meetTime || "—") + "</b></div>" +
     '<div class="kv"><small>解散</small><b>' + esc(act.dissolveTime || "—") + "</b></div>" +
     '<div class="wide" style="display:flex;align-items:center;gap:8px"><div class="kv" style="flex:1"><small>集合・解散場所</small><b style="font-size:15px">' + esc(act.spot || "—") + "</b></div>" +
-    (act.spot ? '<a class="link" href="' + esc(mapUrl(act.spot)) + '" target="_blank" rel="noopener">地図</a>' : "") + "</div>" +
+    "" + "</div>" +
     '<div class="kv"><small>参加費</small><b style="font-size:15px">' + esc(act.feeHop ? fee : "—") + "</b></div>" +
     '<div class="kv"><small>交通費</small><b style="font-size:15px">' + esc(act.transport || "—") + "</b></div></section>";
 
