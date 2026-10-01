@@ -320,6 +320,12 @@ function theme(text) {
   t = t.split(/\n|—|－/)[0].trim();
   return t.length > 24 ? t.slice(0, 24) + "…" : t;
 }
+// 集合場所の地図：名古屋の場所として検索する（「大型ビジョン前」などで別の地域が出ないように）
+function mapUrl(spot) {
+  var q = String(spot || "");
+  if (!/名古屋|愛知|春日井|市|町|村/.test(q)) q = "名古屋市 " + q;
+  return "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(q);
+}
 function nowHM() { var d = new Date(); return ("0" + d.getHours()).slice(-2) + ":" + ("0" + d.getMinutes()).slice(-2); }
 
 var I = {
@@ -589,7 +595,7 @@ function viewHome() {
       '<div class="kv" style="margin-left:28px"><small>解散</small><b>' + esc(act.dissolveTime || "—") + "</b></div></div>";
     if (act.spot) {
       hero += '<div class="info-row">' + I.pin + '<div class="kv" style="flex:1"><small>集合・解散場所</small><b style="font-size:15px">' + esc(act.spot) + "</b></div>" +
-        '<a class="link" href="https://maps.google.com/maps?q=' + encodeURIComponent(act.spot) + '" target="_blank" rel="noopener">地図</a></div>';
+        '<a class="link" href="' + esc(mapUrl(act.spot)) + '" target="_blank" rel="noopener">地図</a></div>';
     }
     hero += '</div><a class="link-row" href="#/detail"><span style="display:flex;align-items:center;gap:8px;color:var(--green)">' + I.bag +
       '<span style="color:var(--ink)">活動のしおり（持ち物・服装）</span></span>' + I.right + "</a>";
@@ -796,7 +802,7 @@ function viewDetail() {
     '<div class="kv"><small>集合</small><b>' + esc(act.meetTime || "—") + "</b></div>" +
     '<div class="kv"><small>解散</small><b>' + esc(act.dissolveTime || "—") + "</b></div>" +
     '<div class="wide" style="display:flex;align-items:center;gap:8px"><div class="kv" style="flex:1"><small>集合・解散場所</small><b style="font-size:15px">' + esc(act.spot || "—") + "</b></div>" +
-    (act.spot ? '<a class="link" href="https://maps.google.com/maps?q=' + encodeURIComponent(act.spot) + '" target="_blank" rel="noopener">地図</a>' : "") + "</div>" +
+    (act.spot ? '<a class="link" href="' + esc(mapUrl(act.spot)) + '" target="_blank" rel="noopener">地図</a>' : "") + "</div>" +
     '<div class="kv"><small>参加費</small><b style="font-size:15px">' + esc(act.feeHop ? fee : "—") + "</b></div>" +
     '<div class="kv"><small>交通費</small><b style="font-size:15px">' + esc(act.transport || "—") + "</b></div></section>";
 
