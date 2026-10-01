@@ -546,6 +546,7 @@ function canPay(q) { return q.undecided.length === 0 && q.due > 0 && q.status !=
 
 function payBlockReason(q) {
   if (q.status === "notready") return "参加費の案内のあとにお支払いできます。";
+  if (q.status === "legacy") return "この月のお支払いは、以前の方法（PayPalなど）で管理しています。";
   if (q.undecided.length) {
     return multi() ? san(q.undecided) + "の出欠が決まると、兄弟姉妹の分をまとめてお支払いできます。"
                    : "出欠が決まるとお支払いできます。";
@@ -618,14 +619,15 @@ function viewHome() {
     notready: ["gray", "準備中", "参加費の案内のあとにお支払いできます。"],
     unpaid: ["warn", "未払い", "お支払い金額 " + yen(q.due)],
     partial: ["warn", "追加のお支払い", "追加のお支払い " + yen(q.due)],
-    paid: ["ok", "支払い済み", yen(q.paidAmount) + " お支払い済みです。"]
+    paid: ["ok", "支払い済み", yen(q.paidAmount) + " お支払い済みです。"],
+    legacy: ["gray", "以前の方法", "この月のお支払いは、以前の方法（PayPalなど）で管理しています。"]
   }[q.status] || ["gray", "", ""];
   var pay = '<section class="card" aria-label="' + m + '月のお支払い"><div class="card-head"><h2 style="display:flex;align-items:center;gap:8px"><span style="color:var(--green)">' + I.card + "</span>" + m + "月のお支払い</h2>" +
     '<span class="pill ' + P[0] + '">' + esc(P[1]) + "</span></div>" +
     '<p class="muted"' + (q.status === "unpaid" || q.status === "partial" ? ' style="color:var(--ink);font-weight:700;font-size:15px"' : "") + ">" + esc(P[2]) + "</p>" +
-    (discountTotal(q) > 0 && q.status !== "notready" ? '<p class="small" style="margin:-6px 0 0;color:var(--warn)">参加費 ' + yen(q.items.reduce(function (s, it) { return s + (it.kind === "child" ? it.base : it.amount); }, 0)) +
+    (discountTotal(q) > 0 && q.status !== "notready" && q.status !== "legacy" ? '<p class="small" style="margin:-6px 0 0;color:var(--warn)">参加費 ' + yen(q.items.reduce(function (s, it) { return s + (it.kind === "child" ? it.base : it.amount); }, 0)) +
       " から割引 −" + yen(discountTotal(q)) + "</p>" : "") +
-    (q.items.length ? '<a class="link" href="#/pay">' + (canPay(q) ? "お支払いへ進む" : "金額の内訳を見る") + "</a>" : "") + "</section>";
+    (q.items.length && q.status !== "legacy" ? '<a class="link" href="#/pay">' + (canPay(q) ? "お支払いへ進む" : "金額の内訳を見る") + "</a>" : "") + "</section>";
 
   page(newsHtml() + monthChips() + hero + att + pay, "home");
 }
@@ -709,6 +711,7 @@ function billSummary(q) {
   h += '<div class="total" style="border-top:1px solid var(--line2)"><b style="font-family:inherit;font-size:14px">' + (q.status === "paid" ? "お支払い済み" : "お支払い金額") +
     "</b><b>" + yen(q.status === "paid" ? q.paidAmount : q.due) + "</b></div>";
   if (canPay(q)) h += '<a class="btn btn-primary" href="#/pay">お支払いへ進む</a>';
+  else if (q.status === "legacy") h += '<p class="small" style="margin:0">' + esc(payBlockReason(q)) + "</p>";
   else if (q.status !== "paid") h += '<button class="btn btn-off" type="button" disabled>お支払いへ進む</button><p class="small" style="margin:0;color:var(--warn-d)">' + esc(payBlockReason(q)) + "</p>";
   return h;
 }
@@ -722,7 +725,9 @@ function viewPay() {
   var h = backLink() + '<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:8px"><div class="title"><h1>' + m + '月のお支払い</h1><span class="s">' +
     esc(dateText(e)) + (act && act.place ? " " + esc(act.place) : "") + "</span></div>" + pill + "</div>";
 
-  if (q.status === "paid") {
+  if (q.status === "legacy") {
+    h += '<section class="card"><p class="muted">' + esc(payBlockReason(q)) + "</p></section>";
+  } else if (q.status === "paid") {
     h += '<section class="card" style="align-items:center;text-align:center;padding:28px 20px;gap:8px"><div class="done-mark">' + I.checkBig + "</div>" +
       '<h2 style="font-family:var(--round);font-size:22px">' + (S.justPaid ? "お支払いが完了しました" : "お支払い済みです") + "</h2>" +
       '<b style="font-family:var(--round);font-size:32px">' + yen(q.paidAmount) + "</b>" +
@@ -1271,11 +1276,11 @@ function adminOverview(d) {
   var rows = adminRows();
   var tabs = [["all", "全員", rows.length], ["none", "未回答", rows.filter(function (r) { return !r.answer; }).length],
     ["maybe", "検討中", rows.filter(function (r) { return r.answer === "maybe"; }).length],
-    ["unpaid", "未払い", rows.filter(function (r) { return r.answer === "yes" && !r.paid; }).length]];
+    ["unpaid", "未払い", rows.filter(function (r) { return r.answer === "yes" && !r.paid && !r.legacy; }).length]];
   var shown = rows.filter(function (r) {
     if (A.tab === "none") return !r.answer;
     if (A.tab === "maybe") return r.answer === "maybe";
-    if (A.tab === "unpaid") return r.answer === "yes" && !r.paid;
+    if (A.tab === "unpaid") return r.answer === "yes" && !r.paid && !r.legacy;
     return true;
   });
 
@@ -1288,7 +1293,7 @@ function adminOverview(d) {
   if (!shown.length) table += '<tr><td colspan="7" style="text-align:center;color:var(--sub);padding:28px">該当するお子さまはいません</td></tr>';
   shown.forEach(function (r) {
     var ans = r.answer === "yes" ? '<span class="pill ok">参加</span>' : r.answer === "no" ? '<span class="pill red">欠席</span>' : r.answer === "maybe" ? '<span class="pill warn">検討中</span>' : '<span class="pill line" style="border-color:var(--warn-b);color:var(--warn)">未回答</span>';
-    var pay = r.answer === "yes" ? (r.paid ? '<b style="color:var(--green-d);font-size:13px">済 ' + yen(r.amount) + "</b>" : '<b style="color:var(--warn);font-size:13px">未払い ' + yen(r.amount) + "</b>") : '<span class="small">—</span>';
+    var pay = r.legacy ? '<span class="small">以前の方法</span>' : r.answer === "yes" ? (r.paid ? '<b style="color:var(--green-d);font-size:13px">済 ' + yen(r.amount) + "</b>" : '<b style="color:var(--warn);font-size:13px">未払い ' + yen(r.amount) + "</b>") : '<span class="small">—</span>';
     if (r.trial) pay += "<small>体験参加 " + r.trial + "人</small>";
     if (r.refundCheck) pay += '<small style="color:var(--red)">支払い後に欠席あり</small>';
     table += "<tr><td><b>" + esc(r.name) + "</b>" + (r.household ? "<small>世帯 " + esc(r.household) + (r.hasSibling ? "・兄弟割" : "") + "</small>" : "") + "</td>" +
