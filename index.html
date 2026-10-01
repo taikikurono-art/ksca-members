@@ -1448,24 +1448,52 @@ function renderStaffLoading() {
 }
 
 function checkBody(d) {
-  var g = S.staff.group;
-  var list = d.children.filter(function (c) { return !g || c.group === g; });
+  var list = d.children;
   var n = list.filter(function (c) { return c.checked; }).length;
-  var h = "";
-  if (d.groups.length) {
-    h += '<div class="chips" role="group" aria-label="グループ" style="margin:0;padding:0">' +
-      '<button type="button" class="chip" data-act="staffGroup" data-g="" aria-pressed="' + (!g) + '">全員</button>' +
-      d.groups.map(function (x) { return '<button type="button" class="chip" data-act="staffGroup" data-g="' + esc(x) + '" aria-pressed="' + (g === x) + '">' + esc(x) + "</button>"; }).join("") + "</div>";
+  var NOGROUP = "グループなし";
+  var teams = d.groups.slice();
+  if (list.some(function (c) { return !c.group; })) teams.push(NOGROUP);
+  var byTeam = {};
+  teams.forEach(function (t) { byTeam[t] = []; });
+  list.forEach(function (c) { byTeam[c.group || NOGROUP].push(c); });
+
+  // 全体の人数
+  var h = '<section class="card" aria-label="集合状況"><div class="card-head"><b style="font-family:var(--round);font-size:34px;color:var(--green)">' + n +
+    '<span style="font-size:18px;color:var(--sub)"> / ' + list.length + '人</span></b><span class="small" style="font-size:13px">' +
+    (list.length && n === list.length ? "全員そろいました" : "来ています") + "</span></div>" +
+    '<div class="progress" role="progressbar" aria-valuenow="' + n + '" aria-valuemin="0" aria-valuemax="' + list.length + '" aria-label="集合した人数"><div style="width:' + (list.length ? Math.round(n / list.length * 100) : 0) + '%"></div></div>';
+
+  // チームごとの「まだ来ていない子」
+  if (list.length && teams.length > 1) {
+    h += '<div style="display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--line2);padding-top:12px">' + teams.map(function (t) {
+      var kids = byTeam[t], k = kids.filter(function (c) { return c.checked; }).length;
+      var missing = kids.filter(function (c) { return !c.checked; }).map(function (c) { return c.name; });
+      var done = k === kids.length;
+      return '<div style="display:flex;flex-direction:column;gap:2px"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">' +
+        '<b style="font-size:14px">' + esc(t) + "</b>" +
+        '<b style="font-size:14px;color:' + (done ? "var(--green-d)" : "var(--warn)") + '">' + (done ? "そろいました " : "") + k + " / " + kids.length + "人</b></div>" +
+        (missing.length ? '<span class="small" style="color:var(--warn-d)">まだ：' + esc(missing.join("、")) + "</span>" : "") + "</div>";
+    }).join("") + "</div>";
   }
-  h += '<section class="card" aria-label="集合状況"><div class="card-head"><b style="font-family:var(--round);font-size:34px;color:var(--green)">' + n +
-    '<span style="font-size:18px;color:var(--sub)"> / ' + list.length + '人</span></b><span class="small" style="font-size:13px">来ています</span></div>' +
-    '<div class="progress" role="progressbar" aria-valuenow="' + n + '" aria-valuemin="0" aria-valuemax="' + list.length + '" aria-label="集合した人数"><div style="width:' + (list.length ? Math.round(n / list.length * 100) : 0) + '%"></div></div></section>';
+  h += "</section>";
+
   if (!list.length) h += '<section class="card"><p class="muted">この月に「参加」と回答したお子さまはいません。</p></section>';
-  h += '<div style="display:flex;flex-direction:column;gap:8px">' + list.map(function (c) {
-    return '<label class="check-kid' + (c.checked ? " on" : "") + '"><input type="checkbox" data-change="staffCheck" data-name="' + esc(c.name) + '"' + (c.checked ? " checked" : "") + ">" +
-      '<span class="n"><b>' + esc(c.name) + '</b><span class="small">' + esc(c.type.toUpperCase()) + (c.group ? "・" + esc(c.group) : "") + "</span></span>" +
-      (c.checked ? '<b style="font-size:13px;color:var(--green-d)">' + esc(c.at) + "</b>" : '<span class="small" style="font-size:13px">まだ</span>') + "</label>";
-  }).join("") + "</div>";
+
+  // チームごとの一覧（まだの子を上に）
+  teams.forEach(function (t) {
+    var kids = byTeam[t].slice().sort(function (a, b) { return (a.checked ? 1 : 0) - (b.checked ? 1 : 0); });
+    if (!kids.length) return;
+    var k = kids.filter(function (c) { return c.checked; }).length;
+    h += '<section aria-label="' + esc(t) + '" style="display:flex;flex-direction:column;gap:8px">' +
+      (teams.length > 1 ? '<div style="display:flex;justify-content:space-between;align-items:baseline;padding:4px 2px 0"><h2 style="margin:0;font-size:15px">' + esc(t) +
+        '</h2><span class="small" style="font-size:13px">' + k + " / " + kids.length + "人</span></div>" : "") +
+      kids.map(function (c) {
+        return '<label class="check-kid' + (c.checked ? " on" : "") + '"><input type="checkbox" data-change="staffCheck" data-name="' + esc(c.name) + '"' + (c.checked ? " checked" : "") + ">" +
+          '<span class="n"><b>' + esc(c.name) + '</b><span class="small">' + esc(c.type.toUpperCase()) + "</span></span>" +
+          (c.checked ? '<b style="font-size:13px;color:var(--green-d)">' + esc(c.at) + "</b>" : '<span class="small" style="font-size:13px">まだ</span>') + "</label>";
+      }).join("") + "</section>";
+  });
+
   h += '<section class="card" aria-label="家庭からの連絡"><h2 style="font-size:14px">家庭からの連絡</h2>' + (d.notes.length ? d.notes.map(function (x) {
     return '<div style="font-size:13px"><b>' + esc(x.name) + "の家庭</b><div class=\"muted\">" + esc(x.text) + "</div></div>";
   }).join("") : '<p class="muted">この月の連絡はありません。</p>') + "</section>";
