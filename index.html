@@ -1022,7 +1022,10 @@ var ACTIONS = {
     var list = pinRows().filter(function (g) { return g.pin; });
     copyText(list.map(function (g) { return g.message; }).join("\n\n――――――――\n\n"), list.length + "家庭分の文面をコピーしました");
   },
-  adminMonth: function (el) { S.admin.month = Number(el.dataset.m); loadAdmin(); },
+  adminMonth: function (el) {
+    var m = Number(el.dataset.m);
+    if (showAdminMonth(m)) renderAdmin(); else { S.admin.month = m; loadAdmin(); }
+  },
   adminTab: function (el) { S.admin.tab = el.dataset.t; renderAdmin(); },
   adminCls: function (el) { S.admin.cls = el.dataset.c; renderAdmin(); },
   adminReload: function () { loadAdmin(); },
@@ -1032,18 +1035,26 @@ var ACTIONS = {
     var A = S.admin, cur = (A.data.news[A.newsCls] || { status: "normal", message: "" });
     var status = A.newsStatus || cur.status || "normal";
     var msg = document.getElementById("newsMsg").value;
-    try { await api("admin_news", { classId: A.newsCls, status: status, message: msg }); A.data.news[A.newsCls] = { status: status, message: msg }; A.newsStatus = null; toast("お知らせを更新しました", true); }
-    catch (err) { toast(err.message); }
+    var before = A.data.news[A.newsCls];
+    A.data.news[A.newsCls] = { status: status, message: msg }; A.newsStatus = null;
     renderAdmin();
+    try { await api("admin_news", { classId: A.newsCls, status: status, message: msg }); toast("お知らせを更新しました", true); }
+    catch (err) { A.data.news[A.newsCls] = before; toast(err.message); renderAdmin(); }
   },
   adminCancel: async function (el) {
     if (!confirm(el.dataset.name + " さんを欠席に変更しますか？")) return;
-    try { await api("admin_cancel", { classId: el.dataset.c, name: el.dataset.name, month: S.admin.data.month }); toast("欠席に変更しました", true); loadAdmin(); }
+    var m = S.admin.data.month, row = S.admin.data.rows.filter(function (r) { return r.name === el.dataset.name && r.classId === el.dataset.c; })[0];
+    if (row) { row.answer = "no"; row.amount = 0; renderAdmin(); }
+    try { await api("admin_cancel", { classId: el.dataset.c, name: el.dataset.name, month: m }); toast("欠席に変更しました", true); }
     catch (err) { toast(err.message); }
+    loadAdmin();
   },
   decide: async function (el) {
     var approve = el.dataset.ok === "1";
     if (!approve && !confirm("この申請を却下しますか？")) return;
+    S.admin.data.requests = S.admin.data.requests.filter(function (x) { return x.id !== el.dataset.id; });
+    if (S.admin.base) S.admin.base.requests = S.admin.data.requests;
+    renderAdmin();
     try {
       var r = await api("admin_sibling_decide", { id: el.dataset.id, approve: approve });
       toast(approve ? "承認しました（世帯ID " + r.household + "）" : "却下しました", true);
@@ -1208,13 +1219,27 @@ document.addEventListener("submit", function (e) {
 // =============================================================
 // 管理画面
 // =============================================================
+// 全部の月をまとめて読み込んでおき、月の切り替えは待たずに表示する
 async function loadAdmin() {
   if (!S.admin.data) renderAdminLoading();
+  S.admin.syncing = true;
+  if (S.admin.data) renderAdmin();
   try {
-    var d = await api("admin_overview", S.admin.month ? { month: S.admin.month } : {});
-    S.admin.data = d; S.admin.month = d.month;
-    renderAdmin();
-  } catch (err) { if (S.session) { toast(err.message); renderAdmin(); } }
+    var d = await api("admin_overview", Object.assign({ all: true }, S.admin.month ? { month: S.admin.month } : {}));
+    S.admin.base = d;
+    S.admin.months = d.months;
+    showAdminMonth(S.admin.month || d.month);
+  } catch (err) { if (S.session) toast(err.message); }
+  S.admin.syncing = false;
+  if (S.session && S.admin.data) renderAdmin();
+}
+
+function showAdminMonth(m) {
+  var A = S.admin, mo = A.months && A.months[m];
+  if (!mo) return false;
+  A.month = m;
+  A.data = Object.assign({}, A.base, { month: m, rows: mo.rows, counts: mo.counts });
+  return true;
 }
 
 async function loadAdminCheck() {
@@ -1269,7 +1294,8 @@ function adminOverview(d) {
   var h = '<div class="atop"><div><h1>' + d.month + '月の活動</h1><div class="small" style="font-size:14px">' + esc(monthLabelBoth(d, d.month)) + "</div></div>" +
     '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><div class="seg" role="group" aria-label="月">' + months.map(function (m) {
       return '<button type="button" data-act="adminMonth" data-m="' + m + '" aria-pressed="' + (m === d.month) + '">' + m + "月</button>";
-    }).join("") + '</div><button type="button" class="btn btn-outline btn-sm" data-act="adminReload">再読み込み</button></div></div>';
+    }).join("") + '</div><button type="button" class="btn btn-outline btn-sm" data-act="adminReload"' + (S.admin.syncing ? " disabled" : "") + ">" +
+    (S.admin.syncing ? '<span class="spin"></span> 更新中…' : "再読み込み") + "</button></div></div>";
 
   h += '<div class="tiles">' +
     '<div class="tile"><small>参加</small><b style="color:var(--green)">' + c.yes + "</b></div>" +
